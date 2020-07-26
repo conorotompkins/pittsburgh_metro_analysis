@@ -10,8 +10,7 @@ census_vars <- load_variables(2010, "sf1", cache = TRUE)
 census_vars %>% 
   #filter(str_detect(label, "Hispanic")) %>%
   filter(concept == "RACE") %>% 
-  filter(str_detect(label, "alone")) %>% 
-  View()
+  filter(str_detect(label, "alone"))
 
 census_vars %>% 
   filter(name == "P003001")
@@ -72,10 +71,22 @@ blocks_housing <- census_housing %>%
 
 glimpse(census_housing)  
 
+
+#load lodes data
+lodes <- read_csv("data/pa_lodes_data.csv", col_types = cols(.default = "c")) %>% 
+  select(-c(state, year)) %>% 
+  mutate(across(residents:jobs, as.numeric))
+
+glimpse(lodes)
+
 #combine census data
 
 census_combined <- blocks_housing %>% 
-  left_join(blocks_demographics, by = c("GEOID"))
+  left_join(blocks_demographics, by = c("GEOID")) %>% 
+  left_join(lodes, by = c("GEOID")) %>% 
+  replace_na(list(residents = 0, jobs = 0))
+
+glimpse(census_combined)
 
 census_combined %>% 
   count(GEOID, sort = TRUE)
