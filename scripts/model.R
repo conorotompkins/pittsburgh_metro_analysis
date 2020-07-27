@@ -10,16 +10,29 @@ block_types <- read_csv("data/city_non_city_block_geoids.csv", col_types = cols(
 
 glimpse(block_types)
 
-census_combined <- read_csv("data/combined_census_data.csv", col_types = cols(.default = "c")) %>% 
-  mutate(across(total_population_housed:pct_hispanic, as.numeric)) %>% 
+census_combined <- read_csv("data/combined_census_data.csv", col_types = cols(.default = "c")) %>%
+  semi_join(block_types) %>% 
+  mutate(across(total_population_housed:jobs, as.numeric)) %>% 
   left_join(block_types) %>% 
-  select(GEOID, type, everything()) %>% 
-  filter(total_population > 0)
+  select(GEOID, type, everything()) %>%
+  mutate(flag_void = (total_population == 0 &
+                        total_population_housed == 0 &
+                        jobs == 0 &
+                        residents == 0) %>% as.factor) %>% 
+  select(-flag_void)
+
+census_combined %>% 
+  count(flag_void)
+
+census_combined %>% 
+  filter(total_population == 0,
+         total_population_housed == 0,
+         jobs == 0,
+         residents == 0)
 
 census_combined %>% 
   arrange(desc(total_population)) %>% 
-  slice(1:100) %>% 
-  View()
+  slice(1:100)
 
 glimpse(census_combined)
 
@@ -36,6 +49,7 @@ testing <- testing(split)
 
 model_recipe <- recipe(type ~ ., data = training) %>% 
   update_role(GEOID, new_role = "id") %>% 
+  #step_dummy(flag_void) %>% 
   step_normalize(all_predictors())
 
 model_recipe_prep <- model_recipe %>% 
@@ -77,11 +91,16 @@ predictions_training %>%
 predictions_training %>% 
   metrics(truth = type, estimate = .pred_class)
 
-fit(rf_workflow, juice(model_recipe_prep)) %>% 
+predictions_training %>% 
+  conf_mat(truth = type, estimate = .pred_class)
+
+df_roc_curve <- fit(rf_workflow, juice(model_recipe_prep)) %>% 
   predict(juice(model_recipe_prep), type = "prob") %>% 
   bind_cols(juice(model_recipe_prep)) %>% 
   mutate(type = as.factor(type)) %>% 
-  roc_curve(truth = type, .pred_city) %>% 
+  roc_curve(truth = type, .pred_city)
+
+df_roc_curve %>% 
   autoplot()
 
 var_imp <- rf_workflow %>% 
@@ -108,6 +127,9 @@ predictions_testing <- fit(rf_workflow, bake(model_recipe_prep, testing)) %>%
 predictions_testing %>% 
   metrics(truth = type, estimate = .pred_class)
 
+predictions_testing %>% 
+  conf_mat(truth = type, estimate = .pred_class)
+
 
 #### map full results
 blocks <- get_decennial(year = 2010, state = "PA", county = "Allegheny County", 
@@ -125,6 +147,32 @@ full_predictions_binary <- fit(rf_workflow, bake(model_recipe_prep, census_combi
   mutate(type = as.factor(type),
          correct = type == .pred_class)
 
+
+top_misses <- full_predictions %>% 
+  select(GEOID, .pred_city, type) %>% 
+  filter(type == "non_city") %>% 
+  arrange(desc(.pred_city)) %>% 
+  slice(1:10)
+
+county <- blocks %>% 
+  summarize()
+
+pgh_official_boundary <- st_read("data/Pittsburgh_City_Boundary-shp") %>% 
+  mutate(geography = "City boundary") %>% 
+  st_transform(crs = "NAD83")
+
+
+blocks %>% 
+  semi_join(top_misses) %>% 
+  #mutate(flag = GEOID == "420035138002019") %>% 
+  #filter(flag == TRUE) %>% 
+  ggplot() +
+  geom_sf(fill = "black", color = NA) +
+  geom_sf(data = pgh_official_boundary, color = "yellow", alpha = 0) +
+  geom_sf(data = county, alpha = 0) +
+  geom_sf_text(aes(label = GEOID)) +
+  #scale_fill_manual(values = c("black", "red")) +
+  theme_void()
 
 glimpse(full_predictions)
 
@@ -148,8 +196,19 @@ prediction_pct_map <- blocks %>%
   theme_void()
 
 prediction_pct_map %>% 
-  ggsave(filename = "output/prediction_pct_map.png", 
+  ggsave(filename = "output/prediction_pct_map.pdf", 
          width = 12, height = 12, dpi = 300)
+
+blocks %>% 
+  select(GEOID) %>% 
+  left_join(full_predictions, by = "GEOID") %>% 
+  mutate(abs_diff = abs(.pred_city - .pred_non_city)) %>% 
+  ggplot() +
+  geom_sf(aes(fill = abs_diff), color = NA) +
+  geom_sf(data = pgh_official_boundary, alpha = 0, color = "black") +
+  scale_fill_viridis_c() +
+  theme_void()
+  
 
 
 full_predictions_binary_small <- full_predictions_binary %>% 
@@ -159,12 +218,17 @@ prediction_binary_map <- blocks %>%
   select(GEOID) %>% 
   left_join(full_predictions_binary_small, by = "GEOID") %>% 
   ggplot() +
-  geom_sf(aes(fill = correct), color = NA) +
-  geom_sf(data = pgh_official_boundary, alpha = 0, color = "yellow") +
-  scale_fill_viridis_d(option = 1) +
+  geom_sf(aes(fill = correct), color = NA, alpha = .7) +
+  geom_sf(data = pgh_official_boundary, alpha = 0, color = "grey") +
+  scale_fill_viridis_d() +
   theme_void()
 
 prediction_binary_map %>% 
-  ggsave(filename = "output/prediction_binary_map.png", 
+  ggsave(filename = "output/prediction_binary_map.pdf", 
          width = 12, height = 12, dpi = 300)
 
+blocks %>% 
+  left_join(block_types) %>% 
+  ggplot() +
+  geom_sf(aes(fill = type), color = NA) +
+  scale_fill_viridis_d()
