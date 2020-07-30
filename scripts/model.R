@@ -4,6 +4,8 @@ library(janitor)
 library(tidycensus)
 library(sf)
 
+options(scipen = 999, digits = 4)
+
 set.seed(1234)
 
 block_types <- read_csv("data/city_non_city_block_geoids.csv", col_types = cols(.default = "c"))
@@ -179,10 +181,6 @@ glimpse(full_predictions)
 full_predictions_small <- full_predictions %>% 
   select(GEOID, type, contains(".pred")) %>% 
   pivot_longer(cols = contains(".pred"))
-
-pgh_official_boundary <- st_read("data/Pittsburgh_City_Boundary-shp") %>% 
-  mutate(type = "City boundary") %>% 
-  st_transform(crs = "NAD83")
 
 prediction_pct_map <- blocks %>% 
   select(GEOID) %>% 
