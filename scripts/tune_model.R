@@ -23,7 +23,8 @@ census_combined <- read_csv("data/combined_census_data.csv", col_types = cols(.d
   mutate(flag_void = (total_population == 0 &
                         total_population_housed == 0 &
                         jobs == 0 &
-                        residents == 0) %>% as.factor) %>% 
+                        residents == 0)) %>% 
+  filter(flag_void == FALSE) %>% 
   select(-flag_void)
 
 census_combined %>% 
@@ -79,7 +80,7 @@ doParallel::registerDoParallel()
 tune_res <- tune_grid(
   tune_wf,
   resamples = trees_folds,
-  grid = 10
+  grid = 20
 )
 
 tune_res
@@ -99,28 +100,31 @@ tune_res %>%
 
 
 
-rf_grid <- grid_regular(
-  mtry(range = c(1, 3)),
-  min_n(range = c(1, 40)),
-  levels = 5
-)
+# rf_grid <- grid_regular(
+#   mtry(range = c(1, 3)),
+#   min_n(range = c(1, 40)),
+#   levels = 5
+# )
+# 
+# regular_res <- tune_grid(
+#   tune_wf,
+#   resamples = trees_folds,
+#   grid = rf_grid
+# )
+# 
+# regular_res %>%
+#   collect_metrics() %>%
+#   filter(.metric == "roc_auc") %>%
+#   mutate(min_n = factor(min_n)) %>%
+#   ggplot(aes(mtry, mean, color = min_n)) +
+#   geom_line(alpha = 0.5, size = 1.5) +
+#   geom_point() +
+#   labs(y = "AUC")
 
-regular_res <- tune_grid(
-  tune_wf,
-  resamples = trees_folds,
-  grid = rf_grid
-)
+best_auc <- select_best(tune_res, "roc_auc")
 
-regular_res %>%
-  collect_metrics() %>%
-  filter(.metric == "roc_auc") %>%
-  mutate(min_n = factor(min_n)) %>%
-  ggplot(aes(mtry, mean, color = min_n)) +
-  geom_line(alpha = 0.5, size = 1.5) +
-  geom_point() +
-  labs(y = "AUC")
-
-best_auc <- select_best(regular_res, "roc_auc")
+best_auc %>% 
+  write_csv("data/model_data/rf_tune_specs")
 
 final_rf <- finalize_model(
   tune_spec,
