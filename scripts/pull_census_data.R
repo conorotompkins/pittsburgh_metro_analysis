@@ -2,7 +2,9 @@ library(tidyverse)
 library(tidycensus)
 library(sf)
 
-theme_set(theme_void())
+options(scipen = 999, digits = 4, tigris_use_cache = TRUE)
+
+#theme_set(theme_void())
 
 ### pull census data
 census_vars <- load_variables(2010, "sf1", cache = TRUE)
@@ -27,6 +29,39 @@ blocks_demographics <- get_decennial(year = 2010, state = "PA", county = "Allegh
                                      variables = vars_demo, summary_var = "P003001",
                                      geography = "block", geometry = FALSE)
 
+tigris_blocks <- tigris::blocks(year = 2010, state = "PA", county = "Allegheny") %>% 
+  select(GEOID10, ALAND10) %>% 
+  rename(GEOID = GEOID10,
+         ALAND = ALAND10)
+
+# tigris_blocks %>% 
+#   left_join(blocks_demographics %>% select(GEOID, summary_value)) %>% 
+#   mutate(population_density = (summary_value / ALAND) * 100000,
+#          population_density = case_when(is.nan(population_density) ~ 0,
+#                                         !is.nan(population_density) ~ population_density)) %>% 
+#   ggplot() +
+#   geom_sf(aes(fill = population_density), color = NA) +
+#   scale_fill_viridis_c()
+
+tigris_blocks <- tigris_blocks %>% 
+  st_drop_geometry() %>% 
+  as_tibble()
+
+tigris_blocks %>% 
+  filter(is.na(ALAND))
+
+
+# tigris_blocks %>% 
+#   ggplot(aes(ALAND)) +
+#   geom_boxplot() +
+#   theme_bw()
+
+blocks_demographics %>% 
+  anti_join(tigris_blocks)
+
+tigris_blocks %>% 
+  anti_join(blocks_demographics)
+
 
 blocks_demographics <- blocks_demographics %>% 
   mutate(pct_demographic = value / summary_value) %>% 
@@ -38,8 +73,14 @@ blocks_demographics <- blocks_demographics %>%
               values_from = pct_demographic) %>% 
   select(-NAME)
 
+blocks_demographics <- blocks_demographics %>% 
+  left_join(tigris_blocks) %>% 
+  mutate(population_density = (total_population / ALAND) * 100000,
+         population_density = case_when(is.nan(population_density) ~ 0,
+                                        !is.nan(population_density) ~ population_density)) %>% 
+  select(-ALAND)
 
-
+  
 
 ### housing
 vars_housing <- c(units_owned_loan = "H011002",
