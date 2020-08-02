@@ -137,6 +137,7 @@ selected_tracts <- selectMap(
 )
 
 selected_tracts %>% 
+  rename(GEOID = id) %>% 
   write_csv("data/selected_tracts.csv")
 
 tracts %>% 
