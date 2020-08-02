@@ -12,6 +12,10 @@ block_types <- read_csv("data/city_non_city_block_geoids.csv", col_types = cols(
 
 glimpse(block_types)
 
+read_csv("data/combined_census_data.csv", col_types = cols(.default = "c")) %>% 
+  select(contains("units")) %>% 
+  View()
+
 census_combined <- read_csv("data/combined_census_data.csv", col_types = cols(.default = "c")) %>%
   semi_join(block_types) %>% 
   mutate(across(total_population_housed:jobs, as.numeric)) %>% 
@@ -21,7 +25,8 @@ census_combined <- read_csv("data/combined_census_data.csv", col_types = cols(.d
                         total_population_housed == 0 &
                         jobs == 0 &
                         residents == 0) %>% as.factor) %>% 
-  select(-flag_void)
+  select(-flag_void) %>% 
+  rename(workers = residents)
 
 census_combined %>% 
   count(flag_void)
@@ -30,7 +35,7 @@ census_combined %>%
   filter(total_population == 0,
          total_population_housed == 0,
          jobs == 0,
-         residents == 0)
+         workers == 0)
 
 census_combined %>% 
   arrange(desc(total_population)) %>% 
@@ -47,7 +52,6 @@ census_combined %>%
 split <- initial_split(census_combined, strata = type)
 training <- training(split)
 testing <- testing(split)
-
 
 model_recipe <- recipe(type ~ ., data = training) %>% 
   update_role(GEOID, new_role = "id") %>% 
@@ -76,6 +80,7 @@ model_recipe_prep %>%
 ranger_model <- rand_forest(trees = 1000, mode = "classification") %>%
   set_engine("ranger", importance = "impurity")
 
+#logistic_model <- glm
 
 rf_workflow <- workflow() %>% 
   add_recipe(model_recipe_prep) %>% 
@@ -143,12 +148,17 @@ full_predictions <- fit(rf_workflow, bake(model_recipe_prep, census_combined)) %
   bind_cols(bake(model_recipe_prep, census_combined)) %>% 
   mutate(type = as.factor(type))
 
+full_predictions %>% 
+  write_csv("output/full_prediction_percent.csv")
+
 full_predictions_binary <- fit(rf_workflow, bake(model_recipe_prep, census_combined)) %>% 
   predict(bake(model_recipe_prep, census_combined)) %>% 
   bind_cols(bake(model_recipe_prep, census_combined)) %>% 
   mutate(type = as.factor(type),
          correct = type == .pred_class)
 
+full_predictions %>% 
+  write_csv("output/full_prediction_binary.csv")
 
 top_misses <- full_predictions %>% 
   select(GEOID, .pred_city, type) %>% 
