@@ -40,8 +40,7 @@ census_combined %>%
 
 census_combined %>% 
   arrange(desc(population_density)) %>% 
-  slice(1:100) %>% 
-  View()
+  slice(1:10)
 
 glimpse(census_combined)
 
@@ -159,7 +158,7 @@ full_predictions_binary <- fit(rf_workflow, bake(model_recipe_prep, census_combi
   mutate(type = as.factor(type),
          correct = type == .pred_class)
 
-full_predictions %>% 
+full_predictions_binary %>% 
   write_csv("output/full_prediction_binary.csv")
 
 top_misses <- full_predictions %>% 
@@ -178,7 +177,7 @@ pgh_official_boundary <- st_read("data/Pittsburgh_City_Boundary-shp") %>%
   filter(FID != 7)
 
 
-blocks %>% 
+tracts %>% 
   semi_join(top_misses) %>% 
   #mutate(flag = GEOID == "420035138002019") %>% 
   #filter(flag == TRUE) %>% 
