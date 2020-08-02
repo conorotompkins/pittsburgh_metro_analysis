@@ -4,32 +4,33 @@ library(janitor)
 library(tidycensus)
 library(sf)
 
-options(scipen = 999, digits = 4)
+options(scipen = 999, digits = 4, tigris_use_cache = TRUE)
+
 
 set.seed(1234)
 
-block_types <- read_csv("data/city_non_city_block_geoids.csv", col_types = cols(.default = "c"))
 
-glimpse(block_types)
 
-read_csv("data/combined_census_data.csv", col_types = cols(.default = "c")) %>% 
-  select(contains("units")) %>% 
-  View()
+city_tracts <- read_csv("data/selected_tracts.csv", col_types = cols("c", "l")) %>% 
+  filter(selected == TRUE) %>% 
+  rename(GEOID = id)
 
-census_combined <- read_csv("data/combined_census_data.csv", col_types = cols(.default = "c")) %>%
-  semi_join(block_types) %>% 
+glimpse(city_tracts)
+
+census_combined <- read_csv("data/combined_census_data_tract.csv", col_types = cols(.default = "c")) %>%
+  left_join(city_tracts) %>% 
+  mutate(type = case_when(selected == TRUE ~ "city",
+                          is.na(selected) ~ "non-city")) %>% 
   mutate(across(total_population_housed:jobs, as.numeric)) %>% 
-  left_join(block_types) %>% 
   select(GEOID, type, everything()) %>%
   mutate(flag_void = (total_population == 0 &
                         total_population_housed == 0 &
                         jobs == 0 &
-                        residents == 0) %>% as.factor) %>% 
-  select(-flag_void) %>% 
-  rename(workers = residents)
+                        workers == 0) %>% as.factor) %>% 
+  select(-c(flag_void, selected))
 
-census_combined %>% 
-  count(flag_void)
+# census_combined %>% 
+#   count(flag_void)
 
 census_combined %>% 
   filter(total_population == 0,
@@ -38,8 +39,9 @@ census_combined %>%
          workers == 0)
 
 census_combined %>% 
-  arrange(desc(total_population)) %>% 
-  slice(1:100)
+  arrange(desc(population_density)) %>% 
+  slice(1:100) %>% 
+  View()
 
 glimpse(census_combined)
 
@@ -139,9 +141,9 @@ predictions_testing %>%
 
 
 #### map full results
-blocks <- get_decennial(year = 2010, state = "PA", county = "Allegheny County", 
+tracts <- get_decennial(year = 2010, state = "PA", county = "Allegheny County", 
                         variables = "P001001",
-                        geography = "block", geometry = TRUE)
+                        geography = "tract", geometry = TRUE)
 
 full_predictions <- fit(rf_workflow, bake(model_recipe_prep, census_combined)) %>% 
   predict(bake(model_recipe_prep, census_combined), type = "prob") %>% 
@@ -166,12 +168,14 @@ top_misses <- full_predictions %>%
   arrange(desc(.pred_city)) %>% 
   slice(1:10)
 
-county <- blocks %>% 
+county <- tracts %>% 
   summarize()
 
 pgh_official_boundary <- st_read("data/Pittsburgh_City_Boundary-shp") %>% 
   mutate(geography = "City boundary") %>% 
-  st_transform(crs = "NAD83")
+  st_transform(crs = "NAD83") %>% 
+  st_cast("POLYGON") %>% 
+  filter(FID != 7)
 
 
 blocks %>% 
@@ -192,13 +196,14 @@ full_predictions_small <- full_predictions %>%
   select(GEOID, type, contains(".pred")) %>% 
   pivot_longer(cols = contains(".pred"))
 
-prediction_pct_map <- blocks %>% 
+prediction_pct_map <- tracts %>% 
   select(GEOID) %>% 
   left_join(full_predictions_small, by = "GEOID") %>% 
   filter(!is.na(name)) %>% 
   ggplot() +
   geom_sf(aes(fill = value), color = NA) +
-  geom_sf(data = pgh_official_boundary, alpha = 0, color = "yellow") +
+  geom_sf(data = pgh_official_boundary, alpha = 0, color = "black") +
+  geom_sf(data = pgh_official_boundary, alpha = 0, color = "yellow", linetype = 2) +
   facet_wrap(~name) +
   scale_fill_viridis_c() +
   theme_void()
@@ -207,13 +212,14 @@ prediction_pct_map %>%
   ggsave(filename = "output/prediction_pct_map.pdf", 
          width = 12, height = 12, dpi = 300)
 
-blocks %>% 
+tracts %>% 
   select(GEOID) %>% 
   left_join(full_predictions, by = "GEOID") %>% 
-  mutate(abs_diff = abs(.pred_city - .pred_non_city)) %>% 
+  mutate(certainty = abs(.pred_city - `.pred_non-city`)) %>% 
   ggplot() +
-  geom_sf(aes(fill = abs_diff), color = NA) +
+  geom_sf(aes(fill = certainty), color = NA) +
   geom_sf(data = pgh_official_boundary, alpha = 0, color = "black") +
+  geom_sf(data = pgh_official_boundary, alpha = 0, color = "yellow", linetype = 2) +
   scale_fill_viridis_c() +
   theme_void()
   
@@ -222,12 +228,13 @@ blocks %>%
 full_predictions_binary_small <- full_predictions_binary %>% 
   select(GEOID, type, .pred_class, correct)
 
-prediction_binary_map <- blocks %>% 
+prediction_binary_map <- tracts %>% 
   select(GEOID) %>% 
   left_join(full_predictions_binary_small, by = "GEOID") %>% 
   ggplot() +
   geom_sf(aes(fill = correct), color = NA, alpha = .7) +
-  geom_sf(data = pgh_official_boundary, alpha = 0, color = "grey") +
+  geom_sf(data = pgh_official_boundary, alpha = 0, color = "black") +
+  geom_sf(data = pgh_official_boundary, alpha = 0, color = "yellow", linetype = 2) +
   scale_fill_viridis_d() +
   theme_void()
 
@@ -235,8 +242,3 @@ prediction_binary_map %>%
   ggsave(filename = "output/prediction_binary_map.pdf", 
          width = 12, height = 12, dpi = 300)
 
-blocks %>% 
-  left_join(block_types) %>% 
-  ggplot() +
-  geom_sf(aes(fill = type), color = NA) +
-  scale_fill_viridis_d()
