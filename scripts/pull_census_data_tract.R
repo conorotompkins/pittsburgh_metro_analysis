@@ -34,6 +34,9 @@ tigris_tracts <- tigris::tracts(year = 2010, state = "PA", county = "Allegheny")
   rename(GEOID = GEOID10,
          ALAND = ALAND10)
 
+tigris_tracts %>% 
+  st_crs()
+
 tigris_tracts %>%
   left_join(tract_demographics %>% select(GEOID, summary_value)) %>%
   mutate(population_density = (summary_value / ALAND) * 100000,
@@ -56,9 +59,6 @@ tigris_tracts %>%
   geom_boxplot() +
   theme_bw()
 
-blocks_demographics %>% 
-  anti_join(tigris_blocks)
-
 tigris_tracts %>% 
   anti_join(tract_demographics)
 
@@ -75,9 +75,6 @@ tract_demographics <- tract_demographics %>%
 
 tract_demographics <- tract_demographics %>% 
   left_join(tigris_tracts) %>% 
-  mutate(population_density = (total_population / ALAND) * 100000,
-         population_density = case_when(is.nan(population_density) ~ 0,
-                                        !is.nan(population_density) ~ population_density)) %>% 
   select(-ALAND)
 
 
@@ -126,7 +123,12 @@ glimpse(tract_lodes)
 census_combined <- tract_housing %>% 
   left_join(tract_demographics, by = c("GEOID")) %>% 
   left_join(tract_lodes, by = c("GEOID")) %>% 
-  replace_na(list(workers = 0, jobs = 0))
+  left_join(tigris_tracts) %>% 
+  replace_na(list(workers = 0, jobs = 0)) %>% 
+  mutate(housed_population_density_100km = (total_population_housed / ALAND) * 100000,
+         housed_population_density_100km = case_when(is.nan(housed_population_density_100km) ~ 0,
+                                        !is.nan(housed_population_density_100km) ~ housed_population_density_100km)) %>% 
+  select(-ALAND)
 
 glimpse(census_combined)
 
