@@ -6,10 +6,7 @@ library(sf)
 
 options(scipen = 999, digits = 4, tigris_use_cache = TRUE)
 
-
 set.seed(1234)
-
-
 
 city_tracts <- read_csv("data/selected_tracts.csv", col_types = cols("c", "l")) %>% 
   filter(selected == TRUE) %>% 
@@ -20,29 +17,25 @@ glimpse(city_tracts)
 census_combined <- read_csv("data/combined_census_data_tract.csv", col_types = cols(.default = "c")) %>%
   left_join(city_tracts) %>% 
   mutate(type = case_when(selected == TRUE ~ "city",
-                          is.na(selected) ~ "non-city")) %>% 
-  mutate(across(total_population_housed:jobs, as.numeric)) %>% 
+                          is.na(selected) ~ "non_city")) %>% 
+  mutate(across(pct_units_owned_loan:housed_population_density_100km, as.numeric)) %>% 
   select(GEOID, type, everything()) %>%
   mutate(flag_void = (total_population == 0 &
-                        total_population_housed == 0 &
+                        housed_population_density_100km == 0 &
                         jobs == 0 &
                         workers == 0) %>% as.factor) %>% 
-  select(-c(flag_void, selected))
+  select(-c(flag_void, selected, total_population, total_population_housed, pct_asian, pct_hispanic))
+
+glimpse(census_combined)
 
 # census_combined %>% 
 #   count(flag_void)
 
 census_combined %>% 
-  filter(total_population == 0,
-         total_population_housed == 0,
-         jobs == 0,
-         workers == 0)
-
-census_combined %>% 
-  arrange(desc(population_density)) %>% 
+  arrange(desc(housed_population_density_100km)) %>% 
   slice(1:10)
 
-glimpse(census_combined)
+
 
 census_combined %>% 
   filter(is.na(GEOID))
@@ -214,7 +207,7 @@ prediction_pct_map %>%
 tracts %>% 
   select(GEOID) %>% 
   left_join(full_predictions, by = "GEOID") %>% 
-  mutate(certainty = abs(.pred_city - `.pred_non-city`)) %>% 
+  mutate(certainty = abs(.pred_city - .pred_non_city)) %>% 
   ggplot() +
   geom_sf(aes(fill = certainty), color = NA) +
   geom_sf(data = pgh_official_boundary, alpha = 0, color = "black") +
