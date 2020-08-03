@@ -1,13 +1,16 @@
 library(tidyverse)
+library(tidycensus)
 library(sf)
 library(leaflet)
 
 options(scipen = 999, digits = 4, tigris_use_cache = TRUE)
 
-full_predictions <- read_csv("output/full_prediction_binary.csv", col_types = cols(.default = "c")) 
+full_predictions <- read_csv("output/full_prediction_percent.csv", 
+                             col_types = cols(.default = "c")) 
 
-tract_info <- read_csv("data/combined_census_data_tract.csv", col_types = cols(.default = "c")) %>% 
-  mutate(across(total_population_housed:jobs, as.numeric)) %>% 
+tract_info <- read_csv("data/combined_census_data_tract.csv", 
+                       col_types = cols(.default = "c")) %>% 
+  mutate(across(total_population_housed:housed_population_density_100km, as.numeric)) %>% 
   mutate(across(where(is.numeric), round, digits = 2))
 
 full_predictions_small <- full_predictions %>% 
@@ -45,14 +48,19 @@ prediction_palette <- colorNumeric(palette = "viridis", domain = tract_pred$.pre
 labels <- sprintf(
   "GEOID: %s<br/>Percent sure it is in the city: %g
   <br/>Total population: %g
-  <br/>Population density: %g",
-  tract_pred$GEOID, tract_pred$.pred_city, tract_pred$total_population, tract_pred$population_density
+  <br/>Housed population density: %g
+  <br/>Percent white: %g
+  <br/>Percent black: %g,
+  <br/>Jobs %g
+  <br/>Workers %g",
+  tract_pred$GEOID, tract_pred$.pred_city, 
+  tract_pred$total_population, tract_pred$housed_population_density_100km, tract_pred$pct_white,
+  tract_pred$pct_black, tract_pred$jobs, tract_pred$workers
 ) %>% lapply(htmltools::HTML)
 
 map <- leaflet(tract_pred) %>% 
-  addTiles(group = "OSM (default)") %>%
-  addProviderTiles(providers$Stamen.Toner, group = "Toner") %>%
-  addProviderTiles(providers$Stamen.TonerLite, group = "Toner Lite") %>% 
+  addProviderTiles(providers$Stamen.Toner, group = "Toner (default)") %>%
+  addTiles(group = "OSM") %>%
   addPolygons(#data = tract_pred,
               weight = .5,
               color = "grey",
@@ -80,16 +88,11 @@ map <- leaflet(tract_pred) %>%
                
                group = "city boundary") %>% 
   addLayersControl(
-    baseGroups = c("OSM (default)", "Toner", "Toner Lite"),
+    baseGroups = c("Toner (default)", "OSM"),
     overlayGroups = c("tracts", "city boundary"),
     options = layersControlOptions(collapsed = FALSE)
   )
 
 
-
-#%>% 
-  # setView(bounds[1], bounds[2], bounds[3], bounds[4]) %>%
-  # fitBounds(bounds[1], bounds[2], bounds[3], bounds[4]) %>% 
-  # setMaxBounds(bounds[1], bounds[2], bounds[3], bounds[4])
 
 map  
