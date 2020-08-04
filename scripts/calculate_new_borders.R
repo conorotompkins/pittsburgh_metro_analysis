@@ -37,36 +37,30 @@ pgh_official_boundary <- st_read("data/Pittsburgh_City_Boundary-shp") %>%
 tract_pred <- tracts %>% 
   left_join(full_predictions_small)
 
-total <- filter_threshhold_list %>% 
-  set_names() %>% 
-  map_df(~filter(state_graph, coeff > .x), .id = "filter_threshhold") %>% 
-  filter(!is.na(coeff),
-         state != other_state) %>% 
-  mutate(filter_threshhold = as.numeric(filter_threshhold))
-
 threshhold_map <- seq(.1, .5, by = .01) %>% 
   set_names() %>% 
   map_df(~mutate(tracts %>% 
         left_join(full_predictions_small), flag_city = .pred_city >= .x), .id = "threshhold") %>%
   arrange(desc(threshhold)) %>% 
-  mutate(threshhold = str_c("City probability >= ", threshhold, "%", sep = ""),
-         threshhold = fct_inorder(threshhold))
+  mutate(threshhold_label = str_c("City probability >= ", threshhold, "%", sep = ""),
+         threshhold_label = fct_inorder(threshhold))
 
 
 threshhold_map %>% 
-  group_by(flag_city, threshhold) %>% 
+  filter(threshhold %in% c(.1, .3, .5)) %>% 
+  group_by(flag_city, threshhold, threshhold_label) %>% 
   summarize() %>% 
   filter(flag_city == TRUE) %>% 
   st_convex_hull() %>% 
   ggplot() +
-  geom_sf(data = threshhold_map #%>% 
+  geom_sf(data = filter(threshhold_map, threshhold %in% c(.1, .3, .5)) #%>% 
             #group_by(flag_city, threshhold) %>% 
             #summarize(), 
           ,aes(fill = flag_city), color = NA, alpha = .8) +
   geom_sf(data = pgh_official_boundary, color = "yellow", fill = NA) +
   geom_sf(color = "black", fill = NA, size = 1) +
   geom_sf(color = "white", fill = NA, linetype = 2, size = 1) +
-  facet_wrap(~threshhold) +
+  facet_wrap(~threshhold_label) +
   scale_fill_viridis_d() +
   theme_void()
 
@@ -74,21 +68,23 @@ library(gganimate)
 library(gifski)
 
 map <- threshhold_map %>% 
-  group_by(flag_city, threshhold) %>% 
+  group_by(flag_city, threshhold, threshhold_label) %>% 
   summarize() %>% 
   filter(flag_city == TRUE) %>% 
   st_convex_hull() %>% 
   ggplot() +
   geom_sf(data = threshhold_map %>% 
-            group_by(flag_city, threshhold) %>% 
+            group_by(flag_city, threshhold, threshhold_label) %>% 
             summarize(),
           aes(fill = flag_city), color = NA, alpha = .8) +
-  geom_sf(data = pgh_official_boundary, color = "black", fill = NA) +
+  geom_sf(data = pgh_official_boundary, color = "black", fill = NA, size = 1) +
+  geom_sf(data = pgh_official_boundary, color = "grey", fill = NA, linetype = 2, size = 1) +
   geom_sf(color = "black", fill = NA, size = 1) +
   geom_sf(color = "white", fill = NA, linetype = 2, size = 1) +
   scale_fill_viridis_d() +
-  labs(title = "{previous_frame}") +
-  theme_void()
+  labs(title = "City threshhold >= {previous_frame}%") +
+  theme_void() +
+  theme(title = element_text(size = 18))
 
 # bad_anim <- map +
 #   transition_states(threshhold)
@@ -96,6 +92,7 @@ map <- threshhold_map %>%
 # anim_save(filename = "output/bad_animation.gif", bad_anim)
 
 anim <- map +
-  transition_manual(threshhold)
+  transition_manual(threshhold_label)
 
-anim_save(filename = "output/animated_expanded_city_borders.gif", animation = anim)
+anim_save(filename = "output/animated_expanded_city_borders.gif", animation = anim,
+          width = 1600, height = 1600, duration = 20, fps = 30, end_pause = 10)
