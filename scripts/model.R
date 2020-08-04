@@ -18,10 +18,10 @@ census_combined <- read_csv("data/combined_census_data_tract.csv", col_types = c
   left_join(city_tracts) %>% 
   mutate(type = case_when(selected == TRUE ~ "city",
                           is.na(selected) ~ "non_city")) %>% 
-  mutate(across(pct_units_owned_loan:housed_population_density_100km, as.numeric)) %>% 
+  mutate(across(pct_units_owned_loan:housed_population_density_1k_per_km, as.numeric)) %>% 
   select(GEOID, type, everything()) %>%
   mutate(flag_void = (total_population == 0 &
-                        housed_population_density_100km == 0 &
+                        housed_population_density_1k_per_km == 0 &
                         jobs == 0 &
                         workers == 0) %>% as.factor) %>% 
   select(-c(flag_void, selected, total_population, total_population_housed, pct_asian, pct_hispanic))
@@ -32,7 +32,7 @@ glimpse(census_combined)
 #   count(flag_void)
 
 census_combined %>% 
-  arrange(desc(housed_population_density_100km)) %>% 
+  arrange(desc(housed_population_density_1k_per_km)) %>% 
   slice(1:10)
 
 
@@ -233,4 +233,3 @@ prediction_binary_map <- tracts %>%
 prediction_binary_map %>% 
   ggsave(filename = "output/prediction_binary_map.pdf", 
          width = 12, height = 12, dpi = 300)
-
