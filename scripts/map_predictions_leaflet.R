@@ -10,7 +10,7 @@ full_predictions <- read_csv("output/full_prediction_percent.csv",
 
 tract_info <- read_csv("data/combined_census_data_tract.csv", 
                        col_types = cols(.default = "c")) %>% 
-  mutate(across(total_population_housed:housed_population_density_100km, as.numeric)) %>% 
+  mutate(across(total_population_housed:housed_population_density_1k_per_km, as.numeric)) %>% 
   mutate(across(where(is.numeric), round, digits = 2))
 
 full_predictions_small <- full_predictions %>% 
@@ -54,7 +54,7 @@ labels <- sprintf(
   <br/>Jobs %g
   <br/>Workers %g",
   tract_pred$GEOID, tract_pred$.pred_city, 
-  tract_pred$total_population, tract_pred$housed_population_density_100km, tract_pred$pct_white,
+  tract_pred$total_population, tract_pred$housed_population_density_1k_per_km, tract_pred$pct_white,
   tract_pred$pct_black, tract_pred$jobs, tract_pred$workers
 ) %>% lapply(htmltools::HTML)
 
