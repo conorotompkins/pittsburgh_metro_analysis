@@ -2,6 +2,7 @@ library(tidyverse)
 library(tidycensus)
 library(sf)
 library(leaflet)
+library(hrbrthemes)
 
 options(scipen = 999, digits = 4, tigris_use_cache = TRUE)
 
@@ -96,3 +97,32 @@ anim <- map +
 
 anim_save(filename = "output/animated_expanded_city_borders.gif", animation = anim,
           width = 1600, height = 1600, duration = 20, fps = 30, end_pause = 10)
+
+
+index_change <- threshhold_map %>% 
+  ungroup() %>% 
+  st_drop_geometry() %>% 
+  filter(.pred_city >= threshhold) %>% 
+  mutate(threshhold = as.numeric(threshhold)) %>% 
+  select(threshhold, GEOID, total_population_housed:housed_population_density_1k_per_km) %>% 
+  pivot_longer(cols = -c(threshhold, GEOID), names_to = "variable") %>% 
+  mutate(variable = str_c("mean_", variable, sep = "")) %>% 
+  group_by(threshhold, variable) %>% 
+  summarize(value_mean = mean(value)) %>% 
+  ungroup() %>% 
+  arrange(desc(threshhold)) %>% 
+  group_by(variable) %>% 
+  mutate(var_index = first(value_mean),
+         pct_change = (value_mean - var_index) / 100,
+         pct_change = pct_change / 100) %>%
+  ungroup()
+
+index_change %>% 
+  ggplot(aes(threshhold, pct_change, color = variable)) +
+  geom_point(alpha = .3) +
+  geom_smooth() +
+  scale_x_percent(trans = "reverse") +
+  scale_y_percent() +
+  labs(y = "Pct change indexed at first value") +
+  theme_ipsum()
+  
