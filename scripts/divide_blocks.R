@@ -5,12 +5,33 @@ library(sf)
 theme_set(theme_void())
 
 urban <- get_acs(geography = "urban area", variables = "B19013_001", geometry = TRUE)
+
 counties <- get_acs(geography = "county", variables = "B19013_001", geometry = TRUE)
+
 counties <- get_acs(geography = "county", variables = "B19013_001", geometry = TRUE)
+
 cities <- tigris::core_based_statistical_areas(cb = TRUE, resolution = "500k")
+
 blocks <- get_decennial(year = 2010, state = "PA", county = "Allegheny County", 
                         variables = "P001001",
                         geography = "block", geometry = TRUE)
+
+blocks_municipality <- st_read("data/blockcodes2016/blockcodes2016.shp") %>% 
+  filter(geo_name_c == "Allegheny") %>% 
+  mutate(block_type = case_when(geo_name_1 == "Pittsburgh city" ~ "city",
+                                geo_name_1 != "Pittsburgh city" ~ "non_city")) %>% 
+  select(GEOID = GEOID10, geo_name_c, geo_name_1, block_type)
+
+glimpse(blocks_municipality)
+
+blocks_municipality %>%
+  st_drop_geometry() %>% 
+  count(geo_name_1, sort = TRUE) %>% 
+  as_tibble()
+
+blocks_municipality %>% 
+  ggplot() +
+  geom_sf(aes(fill = block_type), color = NA)
 
 
 urban_pgh <- urban %>% 
