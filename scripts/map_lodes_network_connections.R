@@ -15,15 +15,32 @@ pa_lodes_od <- grab_lodes(state = "pa", year = 2010,
                                  lodes_type = "od", job_type = "JT00", 
                                  segment = "S000", state_part = "main", 
                                  agg_geo = "county") %>% 
-  select(state, w_county, h_county, S000, year)
+  select(state, w_county, h_county, S000, year) %>% 
+  rename(commuters = S000)
+
+# pa_lodes_od %>% 
+#   rename(workers = S000) %>% 
+#   select(h_county, w_county, workers) %>% 
+#   pivot_wider(id_cols = h_county, names_from = w_county, values_from = workers) %>% 
+#   clean_names() %>% 
+#   mutate(across(matches("^x"), ~replace_na(., 0)))
+  
+
+# pa_lodes_od %>% 
+#   rename(workers = S000) %>% 
+#   select(h_county, w_county, workers) %>% 
+#   mutate(workers = scale(workers)) %>% 
+#   widyr::widely_svd(item = h_county, feature = w_county, value = workers) %>% 
+#   filter(dimension < 3) %>% 
+#   pivot_wider(names_from = dimension, values_from = value, names_prefix = "dim_") %>% 
+#   ggplot(aes(dim_1, dim_2)) +
+#   geom_label(aes(label = h_county))
 
 
 pa_counties <- tigris::counties(state = "PA") %>% 
   select(GEOID, NAME) %>% 
   arrange(GEOID)
 
-pa_counties %>% 
-  st_distance()
 
 node_pos <- pa_counties %>% 
   mutate(centroid = map(geometry, st_centroid),
@@ -38,30 +55,41 @@ node_pos <- pa_counties %>%
 
 
 network_graph <- pa_lodes_od %>% 
-  rename(workers = S000) %>% 
-  select(w_county, h_county, workers) %>% 
+  select(w_county, h_county, commuters) %>% 
   as_tbl_graph(directed = TRUE) %>% 
+  activate(nodes) %>% 
+  mutate(community1 = as.factor(group_infomap()),
+         community2 = as.factor(group_edge_betweenness(directed = TRUE)),
+         community2 = fct_lump_min(community2, 2)) %>% 
   activate(edges) %>% 
-  filter(workers > 1000,
+  filter(commuters > 100,
          !edge_is_loop())
+
+network_graph %>%
+  activate(nodes) %>% 
+  as_tibble() %>% 
+  mutate(community2 = fct_lump_min(community2, 2)) %>% 
+  count(community2, sort = TRUE)
+
 
 #geo_layout <- layout_to_table(graph = network_graph, node_pos)
 
 geo_layout <- create_layout(graph = network_graph,
                             layout = node_pos)
 
-ggraph(geo_layout) +
+plot <- ggraph(geo_layout) +
   geom_sf(data = pa_counties, fill = NA) +
-  geom_edge_fan(aes(edge_width = workers, edge_alpha = workers)) +
-  geom_node_point(color = "red") +
-  scale_edge_alpha(range = c(.1, .7)) +
-  scale_edge_width(range = c(1, 3)) +
+  geom_edge_fan(aes(edge_width = commuters, edge_alpha = commuters),
+                arrow = arrow(length = unit(4, 'mm')), 
+                start_cap = circle(3, 'mm'),
+                end_cap = circle(6, 'mm'),
+                color = "black") +
+  geom_node_point(color = "red", size = 3) +
+  #geom_node_point(aes(color = community2)) +
+  scale_edge_alpha(range = c(.01, .9)) +
+  scale_edge_width(range = c(1, 7)) +
   theme_void()
 
-ggplotly(p = network_graph)
+plot %>% 
+  ggsave(filename = "output/lodes_network_graph.png", width = 24, height = 24, dpi = 300)
 
-network_graph %>% 
-  plotly::
-
-ggiris <- qplot(Petal.Width, Sepal.Length, data = iris, color = Species)
-ggplotly(ggiris)
