@@ -2,6 +2,8 @@ library(tidyverse)
 library(tidycensus)
 library(sf)
 
+options(scipen = 999, digits = 4, tigris_use_cache = TRUE)
+
 theme_set(theme_void())
 
 urban <- get_acs(geography = "urban area", variables = "B19013_001", geometry = TRUE)
@@ -48,7 +50,9 @@ allegheny_county <- counties %>%
 
 pgh_official_boundary <- st_read("data/Pittsburgh_City_Boundary-shp") %>% 
   mutate(geography = "City boundary") %>% 
-  st_transform(crs = "NAD83")
+  st_transform(crs = "NAD83") %>% 
+  st_cast("POLYGON") %>% 
+  filter(FID != 7)
 
 allegheny_blocks <- blocks %>% 
   filter(str_detect(NAME, "Allegheny County")) %>% 
@@ -63,12 +67,13 @@ geo_list %>%
   map(1)
 
 combined <- geo_list %>% 
-  bind_rows()
+  bind_rows() %>% 
+  filter(geography != "block")
 
 combined %>% 
   ggplot() +
-  geom_sf(aes(color = geography), size = .1, alpha = 0) +
-  facet_wrap(~geography) +
+  geom_sf(aes(color = geography), size = 1, alpha = 0) +
+  #facet_wrap(~geography) +
   theme_void()
 
 pgh_official_boundary_separate <- pgh_official_boundary %>% 
