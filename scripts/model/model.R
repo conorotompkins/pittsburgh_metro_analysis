@@ -142,8 +142,8 @@ full_predictions <- fit(rf_workflow, bake(model_recipe_prep, census_combined)) %
   bind_cols(bake(model_recipe_prep, census_combined)) %>% 
   mutate(type = as.factor(type))
 
-full_predictions %>% 
-  write_csv("output/full_prediction_percent.csv")
+# full_predictions %>% 
+#   write_csv("output/full_prediction_percent.csv")
 
 full_predictions_binary <- fit(rf_workflow, bake(model_recipe_prep, census_combined)) %>% 
   predict(bake(model_recipe_prep, census_combined)) %>% 
@@ -151,8 +151,8 @@ full_predictions_binary <- fit(rf_workflow, bake(model_recipe_prep, census_combi
   mutate(type = as.factor(type),
          correct = type == .pred_class)
 
-full_predictions_binary %>% 
-  write_csv("output/full_prediction_binary.csv")
+# full_predictions_binary %>% 
+#   write_csv("output/full_prediction_binary.csv")
 
 top_misses <- full_predictions %>% 
   select(GEOID, .pred_city, type) %>% 
@@ -178,7 +178,7 @@ tracts %>%
   geom_sf(fill = "black", color = NA) +
   geom_sf(data = pgh_official_boundary, color = "yellow", alpha = 0) +
   geom_sf(data = county, alpha = 0) +
-  geom_sf_text(aes(label = GEOID)) +
+  #geom_sf_text(aes(label = GEOID)) +
   #scale_fill_manual(values = c("black", "red")) +
   theme_void()
 
@@ -191,18 +191,41 @@ full_predictions_small <- full_predictions %>%
 prediction_pct_map <- tracts %>% 
   select(GEOID) %>% 
   left_join(full_predictions_small, by = "GEOID") %>% 
+  mutate(name = case_when(name == ".pred_city" ~ "predicted_city",
+                          name == ".pred_non_city" ~ "predicted_non_city")) %>% 
   filter(!is.na(name)) %>% 
   ggplot() +
   geom_sf(aes(fill = value), color = NA) +
   geom_sf(data = pgh_official_boundary, alpha = 0, color = "black") +
   geom_sf(data = pgh_official_boundary, alpha = 0, color = "yellow", linetype = 2) +
   facet_wrap(~name) +
+  labs(fill = "Percent") +
   scale_fill_viridis_c() +
   theme_void()
 
 prediction_pct_map %>% 
   ggsave(filename = "output/prediction_pct_map.pdf", 
          width = 12, height = 12, dpi = 300)
+
+prediction_city_pct_map <- tracts %>% 
+  select(GEOID) %>% 
+  left_join(full_predictions_small, by = "GEOID") %>% 
+  mutate(name = case_when(name == ".pred_city" ~ "predicted_city",
+                          name == ".pred_non_city" ~ "predicted_non_city")) %>% 
+  filter(!is.na(name),
+         name == "predicted_city") %>% 
+  ggplot() +
+  geom_sf(aes(fill = value), color = NA) +
+  geom_sf(data = pgh_official_boundary, alpha = 0, color = "black") +
+  geom_sf(data = pgh_official_boundary, alpha = 0, color = "yellow", linetype = 2) +
+  #facet_wrap(~name) +
+  labs(title = "Classifying Allegheny County tracts as city or non-city",
+       fill = 'Percent "city"') +
+  scale_fill_viridis_c() +
+  theme_void()
+
+prediction_city_pct_map %>% 
+  ggsave(filename = "output/predicted_city_pct.png", width = 12, height = 12, dpi = 300)
 
 tracts %>% 
   select(GEOID) %>% 
