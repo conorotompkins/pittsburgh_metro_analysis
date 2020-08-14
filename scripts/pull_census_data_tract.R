@@ -29,14 +29,16 @@ tract_demographics <- get_decennial(year = 2010, state = "PA", county = "Alleghe
                                      variables = vars_demo, summary_var = "P003001",
                                      geography = "tract", geometry = FALSE)
 
-tigris_tracts <- tigris::tracts(year = 2010, state = "PA", county = "Allegheny") %>% 
-  select(GEOID10, ALAND10) %>% 
-  rename(GEOID = GEOID10,
-         ALAND = ALAND10)
+tigris_tracts <- tigris::tracts(year = 2010, state = "PA", county = "Allegheny") 
+
 
 tigris_tracts %>% 
   st_crs()
 
+tigris_tracts <- tigris_tracts %>% 
+  select(GEOID10, ALAND10) %>% 
+  rename(GEOID = GEOID10,
+         ALAND_meters = ALAND10)
 
 
 tigris_tracts <- tigris_tracts %>% 
@@ -44,11 +46,11 @@ tigris_tracts <- tigris_tracts %>%
   as_tibble()
 
 tigris_tracts %>% 
-  filter(is.na(ALAND))
+  filter(is.na(ALAND_meters))
 
 
 tigris_tracts %>%
-  ggplot(aes(ALAND)) +
+  ggplot(aes(ALAND_meters)) +
   geom_boxplot() +
   theme_bw()
 
@@ -68,7 +70,7 @@ tract_demographics <- tract_demographics %>%
 
 tract_demographics <- tract_demographics %>% 
   left_join(tigris_tracts) %>% 
-  select(-ALAND)
+  select(-ALAND_meters)
 
 
 
@@ -118,10 +120,11 @@ census_combined <- tract_housing %>%
   left_join(tract_lodes, by = c("GEOID")) %>% 
   left_join(tigris_tracts) %>% 
   replace_na(list(workers = 0, jobs = 0)) %>% 
-  mutate(ALAND_km = ALAND / 1000,
-         housed_population_density_1k_per_km = (total_population_housed / ALAND_km) * 1000,
-         housed_population_density_1k_per_km = case_when(is.nan(housed_population_density_1k_per_km) ~ 0,
-                                        !is.nan(housed_population_density_1k_per_km) ~ housed_population_density_1k_per_km)) %>% 
+  mutate(ALAND_km = ALAND_meters / 1000,
+         #need to fix density calculation
+         housed_population_density_pop_per_km = total_population_housed / ALAND_km,
+         housed_population_density_pop_per_km = case_when(is.nan(housed_population_density_pop_per_km) ~ 0,
+                                        !is.nan(housed_population_density_pop_per_km) ~ housed_population_density_pop_per_km)) %>% 
   select(-contains("ALAND"))
 
 
@@ -132,7 +135,7 @@ tracts_geo <- tigris::tracts(state = "PA", county = "Allegheny", cb = TRUE)
 tracts_geo %>% 
   left_join(census_combined) %>%
   ggplot() +
-  geom_sf(aes(fill = housed_population_density_1k_per_km), color = NA) +
+  geom_sf(aes(fill = housed_population_density_pop_per_km), color = NA) +
   scale_fill_viridis_c()
 
 census_combined %>% 
