@@ -46,10 +46,10 @@ census_combined <- read_csv("data/combined_census_data_tract.csv", col_types = c
   left_join(city_tracts) %>% 
   mutate(type = case_when(selected == TRUE ~ "city",
                           is.na(selected) ~ "non_city")) %>% 
-  mutate(across(pct_units_owned_loan:housed_population_density_pop_per_km, as.numeric)) %>% 
+  mutate(across(pct_units_owned_loan:housed_population_density_pop_per_square_km, as.numeric)) %>% 
   select(GEOID, type, everything()) %>%
   mutate(flag_void = (total_population == 0 &
-                        housed_population_density_pop_per_km == 0 &
+                        housed_population_density_pop_per_square_km == 0 &
                         jobs == 0 &
                         workers == 0) %>% as.factor) %>% 
   select(-c(flag_void, selected, total_population, total_population_housed, pct_asian, pct_hispanic))
@@ -208,6 +208,9 @@ full_predictions_binary <- fit(rf_workflow, bake(model_recipe_prep, census_combi
   bind_cols(bake(model_recipe_prep, census_combined)) %>% 
   mutate(type = as.factor(type),
          correct = type == .pred_class)
+
+full_predictions_binary %>%
+  write_csv("output/full_prediction_binary.csv")
 
 full_predictions_binary_small <- full_predictions_binary %>% 
   select(GEOID, type, .pred_class, correct)
