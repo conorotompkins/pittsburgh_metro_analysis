@@ -38,7 +38,7 @@ tigris_tracts %>%
 tigris_tracts <- tigris_tracts %>% 
   select(GEOID10, ALAND10) %>% 
   rename(GEOID = GEOID10,
-         ALAND_meters = ALAND10)
+         ALAND_square_meters = ALAND10)
 
 
 tigris_tracts <- tigris_tracts %>% 
@@ -46,11 +46,11 @@ tigris_tracts <- tigris_tracts %>%
   as_tibble()
 
 tigris_tracts %>% 
-  filter(is.na(ALAND_meters))
+  filter(is.na(ALAND_square_meters))
 
 
 tigris_tracts %>%
-  ggplot(aes(ALAND_meters)) +
+  ggplot(aes(ALAND_square_meters)) +
   geom_boxplot() +
   theme_bw()
 
@@ -70,7 +70,7 @@ tract_demographics <- tract_demographics %>%
 
 tract_demographics <- tract_demographics %>% 
   left_join(tigris_tracts) %>% 
-  select(-ALAND_meters)
+  select(-ALAND_square_meters)
 
 
 
@@ -120,11 +120,11 @@ census_combined <- tract_housing %>%
   left_join(tract_lodes, by = c("GEOID")) %>% 
   left_join(tigris_tracts) %>% 
   replace_na(list(workers = 0, jobs = 0)) %>% 
-  mutate(ALAND_km = ALAND_meters / 1000,
-         #need to fix density calculation
-         housed_population_density_pop_per_km = total_population_housed / ALAND_km,
-         housed_population_density_pop_per_km = case_when(is.nan(housed_population_density_pop_per_km) ~ 0,
-                                        !is.nan(housed_population_density_pop_per_km) ~ housed_population_density_pop_per_km)) %>% 
+  mutate(ALAND_square_km = (ALAND_square_meters / 1000) / 1000,
+         #updated density calculation to per km
+         housed_population_density_pop_per_square_km = total_population_housed / ALAND_square_km,
+         housed_population_density_pop_per_square_km = case_when(is.nan(housed_population_density_pop_per_square_km) ~ 0,
+                                        !is.nan(housed_population_density_pop_per_square_km) ~ housed_population_density_pop_per_square_km)) %>% 
   select(-contains("ALAND"))
 
 
@@ -135,7 +135,7 @@ tracts_geo <- tigris::tracts(state = "PA", county = "Allegheny", cb = TRUE)
 tracts_geo %>% 
   left_join(census_combined) %>%
   ggplot() +
-  geom_sf(aes(fill = housed_population_density_pop_per_km), color = NA) +
+  geom_sf(aes(fill = housed_population_density_pop_per_square_km), color = NA) +
   scale_fill_viridis_c()
 
 census_combined %>% 
