@@ -226,3 +226,14 @@ prediction_binary_map <- tracts %>%
   theme_void()
 
 prediction_binary_map
+
+#references
+#http://www.rebeccabarter.com/blog/2020-03-25_machine_learning/#split-into-traintest
+#https://www.brodrigues.co/blog/2018-11-25-tidy_cv/
+#https://agailloty.rbind.io/en/post/tidymodels/
+#https://alison.rbind.io/post/2020-02-27-better-tidymodels/
+#https://hansjoerg.me/2020/02/09/tidymodels-for-machine-learning/
+#https://towardsdatascience.com/modelling-with-tidymodels-and-parsnip-bae2c01c131c
+#https://www.benjaminsorensen.me/post/modeling-with-parsnip-and-tidymodels/
+#https://rviews.rstudio.com/2019/06/19/a-gentle-intro-to-tidymodels/
+
