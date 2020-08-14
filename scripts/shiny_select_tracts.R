@@ -16,9 +16,9 @@ theme_set(theme_void())
 #counties <- get_acs(geography = "county", variables = "B19013_001", geometry = TRUE)
 #counties <- get_acs(geography = "county", variables = "B19013_001", geometry = TRUE)
 #cities <- tigris::core_based_statistical_areas(cb = TRUE, resolution = "500k")
-blocks <- get_decennial(year = 2010, state = "PA", county = "Allegheny County", 
-                        variables = "P001001",
-                        geography = "block", geometry = TRUE)
+# blocks <- get_decennial(year = 2010, state = "PA", county = "Allegheny County", 
+#                         variables = "P001001",
+#                         geography = "block", geometry = TRUE)
 
 tracts <- get_decennial(year = 2010, state = "PA", county = "Allegheny County", 
                         variables = "P001001",
@@ -57,10 +57,10 @@ tracts %>%
   geom_sf(color = "grey", size = .1, fill = NA) +
   geom_sf(data = pgh_official_boundary, color = "yellow", fill = NA)
 
-tracts %>% 
-  bind_rows(pgh_official_boundary) %>% 
-  ggplot() +
-  geom_sf()
+# tracts %>% 
+#   bind_rows(pgh_official_boundary) %>% 
+#   ggplot() +
+#   geom_sf()
 
 tracts %>% 
   st_bbox()
@@ -137,8 +137,7 @@ selected_tracts <- selectMap(
 )
 
 selected_tracts %>% 
-  rename(GEOID = id) %>% 
-  write_csv("data/selected_tracts.csv")
+  count(selected)
 
 tracts %>% 
   inner_join(selected_tracts, by = c("GEOID" = "id")) %>% 
@@ -146,3 +145,8 @@ tracts %>%
   ggplot() +
   geom_sf(aes(fill = selected)) +
   geom_sf(data = pgh_official_boundary, fill = NA, color = "yellow", size = 2)
+
+selected_tracts %>% 
+  rename(GEOID = id) %>% 
+  filter(selected ==  TRUE) %>% 
+  write_csv("data/selected_tracts.csv")
