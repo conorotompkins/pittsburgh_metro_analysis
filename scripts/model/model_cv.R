@@ -203,7 +203,7 @@ var_imp %>%
 
 #predict on full dataset
 #probabilities
-full_predictions <- fit(rf_workflow, bake(model_recipe_prep, census_combined)) %>% 
+full_predictions <- fit(rf_workflow, juice(model_recipe_prep)) %>% 
   predict(bake(model_recipe_prep, census_combined), type = "prob") %>% 
   bind_cols(bake(model_recipe_prep, census_combined)) %>% 
   mutate(type = as.factor(type))
