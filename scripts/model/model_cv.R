@@ -7,6 +7,7 @@ library(janitor)
 library(tidycensus)
 library(sf)
 library(hrbrthemes)
+library(GGally)
 
 theme_set(theme_ipsum(base_size = 20))
 
@@ -42,7 +43,7 @@ tracts %>%
   geom_sf(data = pgh_official_boundary, color = "white", linetype = 2, alpha = 0) +
   theme_void()
 
-census_combined <- read_csv("data/combined_census_data_tract.csv", col_types = cols(.default = "c")) %>%
+all_data <- read_csv("data/combined_census_data_tract.csv", col_types = cols(.default = "c")) %>%
   left_join(city_tracts) %>% 
   mutate(type = case_when(selected == TRUE ~ "city",
                           is.na(selected) ~ "non_city")) %>% 
@@ -52,17 +53,46 @@ census_combined <- read_csv("data/combined_census_data_tract.csv", col_types = c
                         housed_population_density_pop_per_square_km == 0 &
                         jobs == 0 &
                         workers == 0) %>% as.factor) %>% 
-  select(-c(flag_void, selected, total_population, total_population_housed, pct_asian, pct_hispanic))
+  select(-c(flag_void, selected, total_population_housed))
 
+glimpse(all_data)
+
+#%>% 
+#  select(-c(total_population, total_population_housed, pct_asian, pct_hispanic))
+
+#eda
+pairwise_plot <- all_data %>% 
+  select(-c(GEOID)) %>% 
+  ggpairs(aes(color = type)) +
+  theme(axis.text = element_text(size = 8))
+
+# pairwise_plot %>% 
+#   ggsave(filename = "output/ggpairs_plot.png", height = 36, width = 36)
+
+census_combined <- all_data %>% 
+  select(GEOID, type, 
+         pct_units_owned_loan, pct_units_owned_entire, pct_units_rented,
+         housed_population_density_pop_per_square_km,
+         pct_white, pct_black,
+         workers, jobs)
+
+glimpse(census_combined)
+
+census_combined %>% 
+  tabyl(type)
+
+#bootstrap
+
+tract_boot <- bootstraps(census_combined, strata = type, times = 50)
 
 #split
-split <- initial_split(census_combined, prop = 3/4, strata = type)
-training <- training(split)
-validation <- mc_cv(training, prop = 3/4, times = 100, strata = type)
-testing <- testing(split)
+# split <- initial_split(census_combined, prop = 3/4, strata = type)
+# training <- training(split)
+# validation <- mc_cv(training, prop = 3/4, times = 100, strata = type)
+# testing <- testing(split)
 
 #recipe
-model_recipe <- recipe(type ~ ., data = training) %>% 
+model_recipe <- recipe(type ~ ., data = census_combined) %>% 
   update_role(GEOID, new_role = "id") %>% 
   #step_dummy(flag_void) %>% 
   step_normalize(all_predictors())
@@ -90,7 +120,7 @@ lm_workflow <- workflow() %>%
   add_model(lm_model)
 
 lm_res <- lm_workflow %>% 
-  fit_resamples(resamples = validation) %>% 
+  fit_resamples(resamples = tract_boot) %>% 
   mutate(model = "lm")
 
 lm_res %>% 
@@ -102,7 +132,7 @@ rf_workflow <- workflow() %>%
   add_model(ranger_model)
 
 rf_res <- rf_workflow %>% 
-  fit_resamples(resamples = validation) %>% 
+  fit_resamples(resamples = tract_boot) %>% 
   mutate(model = "rf")
 
 rf_res %>% 
@@ -119,28 +149,28 @@ combined_res %>%
 #rf does much better in general. i will choose that one
 
 ### predict on training
-predictions_training <- fit(rf_workflow, juice(model_recipe_prep)) %>% 
-  predict(juice(model_recipe_prep)) %>% 
-  bind_cols(juice(model_recipe_prep)) %>% 
-  mutate(type = as.factor(type))
+# predictions_training <- fit(rf_workflow, juice(model_recipe_prep)) %>% 
+#   predict(juice(model_recipe_prep)) %>% 
+#   bind_cols(juice(model_recipe_prep)) %>% 
+#   mutate(type = as.factor(type))
 
 #rf does much better on full training set
-predictions_training %>% 
-  metrics(truth = type, estimate = .pred_class)
+# predictions_training %>% 
+#   metrics(truth = type, estimate = .pred_class)
 
 #failures are false negatives
-predictions_training %>% 
-  conf_mat(truth = type, estimate = .pred_class)
+# predictions_training %>% 
+#   conf_mat(truth = type, estimate = .pred_class)
 
 #roc
-df_roc_curve <- fit(rf_workflow, juice(model_recipe_prep)) %>% 
-  predict(juice(model_recipe_prep), type = "prob") %>% 
-  bind_cols(juice(model_recipe_prep)) %>% 
-  mutate(type = as.factor(type)) %>% 
-  roc_curve(truth = type, .pred_city)
-
-df_roc_curve %>% 
-  autoplot()
+# df_roc_curve <- fit(rf_workflow, juice(model_recipe_prep)) %>% 
+#   predict(juice(model_recipe_prep), type = "prob") %>% 
+#   bind_cols(juice(model_recipe_prep)) %>% 
+#   mutate(type = as.factor(type)) %>% 
+#   roc_curve(truth = type, .pred_city)
+# 
+# df_roc_curve %>% 
+#   autoplot()
 
 #variable importance
 var_imp <- rf_workflow %>% 
@@ -155,18 +185,18 @@ var_imp %>%
   theme_bw()
 
 ### predict on testing
-predictions_testing <- fit(rf_workflow, bake(model_recipe_prep, testing)) %>% 
-  predict(bake(model_recipe_prep, testing)) %>% 
-  bind_cols(bake(model_recipe_prep, testing)) %>% 
-  mutate(type = as.factor(type))
+# predictions_testing <- fit(rf_workflow, bake(model_recipe_prep, testing)) %>% 
+#   predict(bake(model_recipe_prep, testing)) %>% 
+#   bind_cols(bake(model_recipe_prep, testing)) %>% 
+#   mutate(type = as.factor(type))
 
 #rf only does very slightly worse on test set
-predictions_testing %>% 
-  metrics(truth = type, estimate = .pred_class)
+# predictions_testing %>% 
+#   metrics(truth = type, estimate = .pred_class)
 
 #failures are false positives this time
-predictions_testing %>% 
-  conf_mat(truth = type, estimate = .pred_class)
+# predictions_testing %>% 
+#   conf_mat(truth = type, estimate = .pred_class)
 
 
 #map results
@@ -190,17 +220,37 @@ prediction_pct_map <- tracts %>%
   left_join(full_predictions_small, by = "GEOID") %>% 
   mutate(name = case_when(name == ".pred_city" ~ "predicted_city",
                           name == ".pred_non_city" ~ "predicted_non_city")) %>% 
-  filter(!is.na(name)) %>% 
+  filter(name == "predicted_city") %>% 
   ggplot() +
   geom_sf(aes(fill = value), color = NA) +
   geom_sf(data = pgh_official_boundary, alpha = 0, color = "black") +
   geom_sf(data = pgh_official_boundary, alpha = 0, color = "yellow", linetype = 2) +
-  facet_wrap(~name) +
-  labs(fill = "Percent") +
-  scale_fill_viridis_c() +
+  labs(title = 'Probability of "city"',
+       fill = "Probability") +
+  scale_fill_viridis_c(labels = scales::percent) +
   theme_void()
 
 prediction_pct_map
+
+prediction_pct_map %>% 
+  ggsave(filename = "output/prediction_pct_map.png", width = 12, height = 12, dpi = 300)
+
+tracts %>% 
+  select(GEOID) %>% 
+  left_join(full_predictions_small, by = "GEOID") %>% 
+  mutate(name = case_when(name == ".pred_city" ~ "predicted_city",
+                          name == ".pred_non_city" ~ "predicted_non_city")) %>% 
+  filter(name == "predicted_non_city") %>% 
+  ggplot() +
+  geom_sf(aes(fill = value), color = NA) +
+  geom_sf(data = pgh_official_boundary, alpha = 0, color = "black") +
+  geom_sf(data = pgh_official_boundary, alpha = 0, color = "yellow", linetype = 2) +
+  labs(title = 'Probability of "non-city"',
+       fill = "Probability") +
+  scale_fill_viridis_c(labels = scales::percent) +
+  theme_void()
+
+
 
 #binary predictions
 full_predictions_binary <- fit(rf_workflow, bake(model_recipe_prep, census_combined)) %>% 
@@ -215,7 +265,7 @@ full_predictions_binary %>%
 full_predictions_binary_small <- full_predictions_binary %>% 
   select(GEOID, type, .pred_class, correct)
 
-prediction_binary_map <- tracts %>% 
+tracts %>% 
   select(GEOID) %>% 
   left_join(full_predictions_binary_small, by = "GEOID") %>% 
   ggplot() +
@@ -223,9 +273,9 @@ prediction_binary_map <- tracts %>%
   geom_sf(data = pgh_official_boundary, alpha = 0, color = "black") +
   geom_sf(data = pgh_official_boundary, alpha = 0, color = "yellow", linetype = 2) +
   scale_fill_viridis_d() +
+  labs(title = "Prediction outcome",
+       fill = NULL) +
   theme_void()
-
-prediction_binary_map
 
 #references
 #http://www.rebeccabarter.com/blog/2020-03-25_machine_learning/#split-into-traintest
@@ -236,4 +286,3 @@ prediction_binary_map
 #https://towardsdatascience.com/modelling-with-tidymodels-and-parsnip-bae2c01c131c
 #https://www.benjaminsorensen.me/post/modeling-with-parsnip-and-tidymodels/
 #https://rviews.rstudio.com/2019/06/19/a-gentle-intro-to-tidymodels/
-
