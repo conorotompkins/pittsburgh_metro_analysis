@@ -150,8 +150,7 @@ full_predictions <- fit(lm_workflow, bake(model_recipe_prep, census_combined)) %
   bind_cols(bake(model_recipe_prep, census_combined)) %>% 
   mutate(type = as.factor(type))
 
-full_predictions %>% 
-  write_csv("output/full_prediction_percent.csv")
+
 
 full_predictions_binary <- fit(lm_workflow, bake(model_recipe_prep, census_combined)) %>% 
   predict(bake(model_recipe_prep, census_combined)) %>% 
@@ -159,8 +158,7 @@ full_predictions_binary <- fit(lm_workflow, bake(model_recipe_prep, census_combi
   mutate(type = as.factor(type),
          correct = type == .pred_class)
 
-full_predictions_binary %>% 
-  write_csv("output/full_prediction_binary.csv")
+
 
 top_misses <- full_predictions %>% 
   select(GEOID, .pred_city, type) %>% 
@@ -186,7 +184,7 @@ tracts %>%
   geom_sf(fill = "black", color = NA) +
   geom_sf(data = pgh_official_boundary, color = "yellow", alpha = 0) +
   geom_sf(data = county, alpha = 0) +
-  geom_sf_text(aes(label = GEOID)) +
+  #geom_sf_text(aes(label = GEOID)) +
   #scale_fill_manual(values = c("black", "red")) +
   theme_void()
 
@@ -237,7 +235,3 @@ prediction_binary_map <- tracts %>%
   geom_sf(data = pgh_official_boundary, alpha = 0, color = "yellow", linetype = 2) +
   scale_fill_viridis_d() +
   theme_void()
-
-prediction_binary_map %>% 
-  ggsave(filename = "output/prediction_binary_map.pdf", 
-         width = 12, height = 12, dpi = 300)
