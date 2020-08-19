@@ -79,7 +79,7 @@ census_combined %>%
 
 #bootstrap
 
-tract_boot <- bootstraps(census_combined, strata = type, times = 50)
+tract_boot <- bootstraps(census_combined, strata = type, times = 100)
 
 #split
 # split <- initial_split(census_combined, prop = 3/4, strata = type)
@@ -128,7 +128,8 @@ rf_workflow <- workflow() %>%
   add_model(ranger_model)
 
 rf_res <- rf_workflow %>% 
-  fit_resamples(resamples = tract_boot) %>% 
+  fit_resamples(resamples = tract_boot,
+                control = control_resamples(save_pred = TRUE)) %>% 
   mutate(model = "rf")
 
 rf_res %>% 
@@ -218,81 +219,57 @@ test_vi_data %>%
 
 #map results
 
-#predict on full dataset
-#probabilities
-full_predictions <- fit(rf_workflow, juice(model_recipe_prep)) %>% 
-  predict(juice(model_recipe_prep), type = "prob") %>% 
-  bind_cols(juice(model_recipe_prep)) %>% 
-  mutate(type = as.factor(type))
 
-full_predictions %>%
+
+#pull full predictions out of bootstrap resamples
+full_predictions <- rf_res %>% 
+  collect_predictions() %>% 
+  mutate(correct = type == .pred_class) %>%
+  left_join(census_combined %>%
+              mutate(.row = row_number()))
+
+full_predictions_pct <- full_predictions %>% 
+  group_by(GEOID) %>% 
+  summarize(pct_correct = mean(correct),
+            mean_city = mean(.pred_city),
+            mean_non_city = mean(.pred_non_city),
+            n = n())
+
+full_predictions_pct %>%
   write_csv("output/full_prediction_percent.csv")
 
-full_predictions_small <- full_predictions %>% 
-  select(GEOID, type, contains(".pred")) %>% 
-  pivot_longer(cols = contains(".pred"))
+full_predictions_pct %>% 
+  ggplot(aes(n)) +
+  geom_histogram()
 
-prediction_pct_map <- tracts %>% 
-  select(GEOID) %>% 
-  left_join(full_predictions_small, by = "GEOID") %>% 
-  mutate(name = case_when(name == ".pred_city" ~ "predicted_city",
-                          name == ".pred_non_city" ~ "predicted_non_city")) %>% 
-  filter(name == "predicted_city") %>% 
+prediction_pct_correct_map <- tracts %>% 
+  left_join(full_predictions_pct) %>% 
   ggplot() +
-  geom_sf(aes(fill = value), color = NA) +
+  geom_sf(aes(fill = pct_correct), size = NA) +
   geom_sf(data = pgh_official_boundary, alpha = 0, color = "black") +
   geom_sf(data = pgh_official_boundary, alpha = 0, color = "yellow", linetype = 2) +
-  labs(title = 'Probability of "city"',
-       fill = "Probability") +
   scale_fill_viridis_c(labels = scales::percent) +
   theme_void()
 
-prediction_pct_map
+prediction_pct_correct_map %>% 
+  ggsave(filename = "output/prediction_pct_correct_map.png", width = 12, height = 12, dpi = 300)
+
+prediction_pct_map <- tracts %>% 
+  left_join(full_predictions_pct) %>% 
+  ggplot() +
+  geom_sf(aes(fill = mean_city), size = NA) +
+  geom_sf(data = pgh_official_boundary, alpha = 0, color = "black") +
+  geom_sf(data = pgh_official_boundary, alpha = 0, color = "yellow", linetype = 2) +
+  scale_fill_viridis_c(labels = scales::percent) +
+  theme_void()
 
 prediction_pct_map %>% 
   ggsave(filename = "output/prediction_pct_map.png", width = 12, height = 12, dpi = 300)
 
-tracts %>% 
-  select(GEOID) %>% 
-  left_join(full_predictions_small, by = "GEOID") %>% 
-  mutate(name = case_when(name == ".pred_city" ~ "predicted_city",
-                          name == ".pred_non_city" ~ "predicted_non_city")) %>% 
-  filter(name == "predicted_non_city") %>% 
-  ggplot() +
-  geom_sf(aes(fill = value), color = NA) +
-  geom_sf(data = pgh_official_boundary, alpha = 0, color = "black") +
-  geom_sf(data = pgh_official_boundary, alpha = 0, color = "yellow", linetype = 2) +
-  labs(title = 'Probability of "non-city"',
-       fill = "Probability") +
-  scale_fill_viridis_c(labels = scales::percent) +
-  theme_void()
 
 
 
-#binary predictions
-full_predictions_binary <- fit(rf_workflow, juice(model_recipe_prep)) %>% 
-  predict(juice(model_recipe_prep)) %>% 
-  bind_cols(juice(model_recipe_prep)) %>% 
-  mutate(type = as.factor(type),
-         correct = type == .pred_class)
 
-full_predictions_binary %>%
-  write_csv("output/full_prediction_binary.csv")
-
-full_predictions_binary_small <- full_predictions_binary %>% 
-  select(GEOID, type, .pred_class, correct)
-
-tracts %>% 
-  select(GEOID) %>% 
-  left_join(full_predictions_binary_small, by = "GEOID") %>% 
-  ggplot() +
-  geom_sf(aes(fill = correct), color = NA, alpha = .7) +
-  geom_sf(data = pgh_official_boundary, alpha = 0, color = "black") +
-  geom_sf(data = pgh_official_boundary, alpha = 0, color = "yellow", linetype = 2) +
-  scale_fill_viridis_d() +
-  labs(title = "Prediction outcome",
-       fill = NULL) +
-  theme_void()
 
 #references
 #https://juliasilge.com/blog/multinomial-volcano-eruptions/
