@@ -49,11 +49,7 @@ all_data <- read_csv("data/combined_census_data_tract.csv", col_types = cols(.de
                           is.na(selected) ~ "non_city")) %>% 
   mutate(across(pct_units_owned_loan:housed_population_density_pop_per_square_km, as.numeric)) %>% 
   select(GEOID, type, everything()) %>%
-  mutate(flag_void = (total_population == 0 &
-                        housed_population_density_pop_per_square_km == 0 &
-                        jobs == 0 &
-                        workers == 0) %>% as.factor) %>% 
-  select(-c(flag_void, selected, total_population_housed))
+  select(-c(selected, total_population_housed))
 
 glimpse(all_data)
 
@@ -184,6 +180,27 @@ var_imp %>%
   geom_point() +
   theme_bw()
 
+#test vi variance
+test_vi_data <- juice(model_recipe_prep) %>% 
+  mutate(set = 1) %>% 
+  bind_rows(juice(model_recipe_prep) %>% mutate(set = 2)) %>% 
+  bind_rows(juice(model_recipe_prep) %>% mutate(set = 3)) %>% 
+  bind_rows(juice(model_recipe_prep) %>% mutate(set = 4)) %>% 
+  bind_rows(juice(model_recipe_prep) %>% mutate(set = 5)) %>% 
+  group_by(set) %>% 
+  nest()
+
+test_vi_data %>% 
+  mutate(predictions = map(data, ~fit(rf_workflow, data = .x)),
+         predictions = map(predictions, pull_workflow_fit),
+         var_imp = map(predictions, vip::vi)) %>% 
+  unnest(var_imp) %>% 
+  mutate(set = as.factor(set)) %>% 
+  mutate(Variable = fct_reorder(Variable, Importance, .fun = median)) %>% 
+  ggplot(aes(Importance, Variable, color = set)) +
+  geom_point()
+#
+
 ### predict on testing
 # predictions_testing <- fit(rf_workflow, bake(model_recipe_prep, testing)) %>% 
 #   predict(bake(model_recipe_prep, testing)) %>% 
@@ -204,8 +221,8 @@ var_imp %>%
 #predict on full dataset
 #probabilities
 full_predictions <- fit(rf_workflow, juice(model_recipe_prep)) %>% 
-  predict(bake(model_recipe_prep, census_combined), type = "prob") %>% 
-  bind_cols(bake(model_recipe_prep, census_combined)) %>% 
+  predict(juice(model_recipe_prep), type = "prob") %>% 
+  bind_cols(juice(model_recipe_prep)) %>% 
   mutate(type = as.factor(type))
 
 full_predictions %>%
@@ -253,9 +270,9 @@ tracts %>%
 
 
 #binary predictions
-full_predictions_binary <- fit(rf_workflow, bake(model_recipe_prep, census_combined)) %>% 
-  predict(bake(model_recipe_prep, census_combined)) %>% 
-  bind_cols(bake(model_recipe_prep, census_combined)) %>% 
+full_predictions_binary <- fit(rf_workflow, juice(model_recipe_prep)) %>% 
+  predict(juice(model_recipe_prep)) %>% 
+  bind_cols(juice(model_recipe_prep)) %>% 
   mutate(type = as.factor(type),
          correct = type == .pred_class)
 
@@ -278,6 +295,7 @@ tracts %>%
   theme_void()
 
 #references
+#https://juliasilge.com/blog/multinomial-volcano-eruptions/
 #http://www.rebeccabarter.com/blog/2020-03-25_machine_learning/#split-into-traintest
 #https://www.brodrigues.co/blog/2018-11-25-tidy_cv/
 #https://agailloty.rbind.io/en/post/tidymodels/
