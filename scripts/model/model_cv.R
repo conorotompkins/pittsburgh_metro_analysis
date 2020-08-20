@@ -228,6 +228,11 @@ full_predictions <- rf_res %>%
   left_join(census_combined %>%
               mutate(.row = row_number()))
 
+full_predictions %>% 
+  count(type, GEOID) %>% 
+  ggplot(aes(n, fill = type, color = type)) +
+  geom_density(alpha = .3)
+
 full_predictions_pct <- full_predictions %>% 
   group_by(GEOID) %>% 
   summarize(pct_correct = mean(correct),
