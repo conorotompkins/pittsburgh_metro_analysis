@@ -171,7 +171,7 @@ combined_res %>%
 
 #variable importance
 var_imp <- rf_workflow %>% 
-  fit(juice(model_recipe_prep)) %>% 
+  fit(juice(model_recipe_prep)) %>%
   pull_workflow_fit() %>% 
   vip::vi()
 
@@ -251,6 +251,8 @@ prediction_pct_correct_map <- tracts %>%
   scale_fill_viridis_c(labels = scales::percent) +
   theme_void()
 
+prediction_pct_correct_map
+
 prediction_pct_correct_map %>% 
   ggsave(filename = "output/prediction_pct_correct_map.png", width = 12, height = 12, dpi = 300)
 
@@ -262,6 +264,8 @@ prediction_pct_map <- tracts %>%
   geom_sf(data = pgh_official_boundary, alpha = 0, color = "yellow", linetype = 2) +
   scale_fill_viridis_c(labels = scales::percent) +
   theme_void()
+
+prediction_pct_map
 
 prediction_pct_map %>% 
   ggsave(filename = "output/prediction_pct_map.png", width = 12, height = 12, dpi = 300)
