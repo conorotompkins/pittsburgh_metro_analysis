@@ -63,7 +63,7 @@ pairwise_plot <- all_data %>%
   theme(axis.text = element_text(size = 8))
 
 # pairwise_plot %>% 
-#   ggsave(filename = "output/ggpairs_plot.png", height = 36, width = 36)
+#    ggsave(filename = "output/ggpairs_plot.png", height = 24, width = 24)
 
 census_combined <- all_data %>% 
   select(GEOID, type, 
@@ -240,8 +240,8 @@ full_predictions_pct <- full_predictions %>%
             mean_non_city = mean(.pred_non_city),
             n = n())
 
-full_predictions_pct %>%
-  write_csv("output/full_prediction_percent.csv")
+# full_predictions_pct %>%
+#   write_csv("output/full_prediction_percent.csv")
 
 full_predictions_pct %>% 
   ggplot(aes(n)) +
@@ -251,31 +251,39 @@ prediction_pct_correct_map <- tracts %>%
   left_join(full_predictions_pct) %>% 
   ggplot() +
   geom_sf(aes(fill = pct_correct), size = NA) +
-  geom_sf(data = pgh_official_boundary, alpha = 0, color = "black") +
-  geom_sf(data = pgh_official_boundary, alpha = 0, color = "yellow", linetype = 2) +
+  geom_sf(data = pgh_official_boundary, alpha = 0, color = "black", size = 2) +
+  geom_sf(data = pgh_official_boundary, alpha = 0, color = "yellow", size = .3) +
   scale_fill_viridis_c(labels = scales::percent) +
   theme_void()
 
 prediction_pct_correct_map
 
-prediction_pct_correct_map %>% 
-  ggsave(filename = "output/prediction_pct_correct_map.png", width = 12, height = 12, dpi = 300)
+# prediction_pct_correct_map %>% 
+#   ggsave(filename = "output/prediction_pct_correct_map.png", width = 12, height = 12, dpi = 300)
 
 prediction_pct_map <- tracts %>% 
   left_join(full_predictions_pct) %>% 
   ggplot() +
   geom_sf(aes(fill = mean_city), size = NA) +
-  geom_sf(data = pgh_official_boundary, alpha = 0, color = "black") +
-  geom_sf(data = pgh_official_boundary, alpha = 0, color = "yellow", linetype = 2) +
+  geom_sf(data = pgh_official_boundary, alpha = 0, color = "black", size = 2) +
+  geom_sf(data = pgh_official_boundary, alpha = 0, color = "yellow", size = .3) +
   scale_fill_viridis_c(labels = scales::percent) +
   theme_void()
 
 prediction_pct_map
 
-prediction_pct_map %>% 
-  ggsave(filename = "output/prediction_pct_map.png", width = 12, height = 12, dpi = 300)
+# prediction_pct_map %>% 
+#   ggsave(filename = "output/prediction_pct_map.png", width = 12, height = 12, dpi = 300)
 
 
+#diagnostics
+
+census_combined %>% 
+  left_join(full_predictions_pct) %>% 
+  pivot_longer(pct_units_owned_loan:jobs) %>% 
+  ggplot(aes(value, pct_correct)) +
+    geom_point(alpha = .3) +
+    facet_wrap(~name, scales = "free_x")
 
 
 
