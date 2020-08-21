@@ -14,10 +14,11 @@ tract_info <- read_csv("data/combined_census_data_tract.csv",
   mutate(across(where(is.numeric), round, digits = 2))
 
 full_predictions_small <- full_predictions %>% 
-  select(GEOID, contains(".pred")) %>% 
+  select(GEOID, mean_city) %>% 
   mutate(GEOID = as.character(GEOID),
-         across(contains(".pred"), as.numeric),
-         across(contains(".pred"), round, digits = 2)) %>% 
+         mean_city = as.numeric(mean_city),
+         mean_city = round(mean_city, digits = 2),
+         mean_city = mean_city * 100) %>% 
   left_join(tract_info)
 
 glimpse(full_predictions_small)
@@ -43,31 +44,35 @@ bounds <- tracts %>% st_bbox() %>% unlist()
 
 names(bounds) <- NULL
 
-prediction_palette <- colorNumeric(palette = "viridis", domain = tract_pred$.pred_city)
+prediction_palette <- colorNumeric(palette = "viridis", domain = tract_pred$mean_city)
 
 labels <- sprintf(
-  "GEOID: %s<br/>Percent sure it is in the city: %g
+  "GEOID: %s<br/>Average city classification: %g%%
   <br/>Total population: %g
   <br/>Housed population density per sq km: %g
-  <br/>Percent white: %g
-  <br/>Percent black: %g,
-  <br/>Jobs %g
-  <br/>Workers %g",
-  tract_pred$GEOID, tract_pred$.pred_city, 
+  <br/>Percent white: %g%%
+  <br/>Percent black: %g%%,
+  <br/>Jobs: %g
+  <br/>Workers: %g",
+  tract_pred$GEOID, tract_pred$mean_city, 
   tract_pred$total_population, tract_pred$housed_population_density_pop_per_square_km, tract_pred$pct_white,
   tract_pred$pct_black, tract_pred$jobs, tract_pred$workers
 ) %>% lapply(htmltools::HTML)
 
 map <- leaflet(tract_pred) %>% 
-  addProviderTiles(providers$Stamen.Toner, group = "Toner (default)") %>%
+  setView(lat = 40.441606, lng = -80.010957, zoom = 10) %>% 
+  addProviderTiles(providers$Stamen.Toner, 
+                   group = "Toner (default)") %>%
   addTiles(group = "OSM") %>%
+  addMapPane("Census tracts", zIndex = 400) %>% # shown below ames_circles               
+  addMapPane("City boundary", zIndex = 490) %>% # shown above ames_lines 
   addPolygons(#data = tract_pred,
               weight = .5,
               color = "grey",
-              fillColor = ~prediction_palette(.pred_city),
+              fillColor = ~prediction_palette(mean_city),
               fillOpacity = .8,
               #
-              group = "tracts",
+              group = "Census tracts",
               #
               highlightOptions = highlightOptions(weight = 3,
                                                   bringToFront = TRUE),
@@ -76,20 +81,40 @@ map <- leaflet(tract_pred) %>%
               labelOptions = labelOptions(
                 style = list("font-weight" = "normal", padding = "3px 8px"),
                 textsize = "15px",
-                direction = "auto")) %>% 
-  addLegend(pal = prediction_palette, values = ~.pred_city, opacity = 0.7, title = "% city",
+                direction = "auto"),
+              
+              #
+              options = pathOptions(pane = "Census tracts")
+              ) %>% 
+  addLegend(pal = prediction_palette, 
+            values = ~mean_city, 
+            opacity = 0.7, 
+            labFormat = labelFormat(suffix = "%"),
+            title = "Average city classification %",
             position = "bottomright") %>% 
   addPolylines(data = pgh_official_boundary,
-               weight = 5,
+               weight = 10,
                stroke = TRUE,
                color = "black",
                
                #
                
-               group = "city boundary") %>% 
+               group = "City boundary",
+               options = pathOptions(pane = "City boundary")
+               ) %>% 
+  addPolylines(data = pgh_official_boundary,
+               weight = 2,
+               stroke = TRUE,
+               color = "yellow",
+               
+               #
+               
+               group = "City boundary",
+               options = pathOptions(pane = "City boundary")
+               ) %>% 
   addLayersControl(
     baseGroups = c("Toner (default)", "OSM"),
-    overlayGroups = c("tracts", "city boundary"),
+    overlayGroups = c("Census tracts", "City boundary"),
     options = layersControlOptions(collapsed = FALSE)
   )
 
