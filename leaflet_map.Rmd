@@ -30,10 +30,10 @@ tract_info <- read_csv("data/combined_census_data_tract.csv",
   mutate(across(where(is.numeric), round, digits = 2))
 
 full_predictions_small <- full_predictions %>% 
-  select(GEOID, mean_city) %>% 
+  select(GEOID, mean_city, pct_correct) %>% 
   mutate(GEOID = as.character(GEOID),
-         mean_city = as.numeric(mean_city),
-         mean_city = round(mean_city, digits = 2)) %>% 
+         across(c(mean_city, pct_correct), as.numeric),
+         across(c(mean_city, pct_correct), round, digits = 2)) %>% 
   left_join(tract_info) %>% 
   mutate(across(c(mean_city, matches("pct")), ~. * 100))
 
@@ -64,6 +64,7 @@ prediction_palette <- colorNumeric(palette = "viridis", domain = tract_pred$mean
 labels <- sprintf(
   "Census tract ID: %s
   <br/>Average city classification: %g%%
+  <br/>Model correct: %g%%
   <br/>Percent white: %g%%
   <br/>Percent of housing units owned with a loan: %g%%
   <br/>Workers: %g
@@ -73,6 +74,7 @@ labels <- sprintf(
   <br/>Percent black: %g%%",
   tract_pred$GEOID, 
   tract_pred$mean_city, 
+  tract_pred$pct_correct,
   tract_pred$pct_white,
   tract_pred$pct_units_owned_loan,
   tract_pred$workers,
@@ -93,7 +95,7 @@ map <- leaflet(tract_pred) %>%
   addMapPane("City boundary", zIndex = 490) %>% # shown above ames_lines 
   addPolygons(#data = tract_pred,
               weight = .5,
-              color = "grey",
+              color = "black",
               fillColor = ~prediction_palette(mean_city),
               fillOpacity = .8,
               #
