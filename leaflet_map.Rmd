@@ -55,6 +55,22 @@ tract_pred <- tracts %>%
 ```
 
 ```{r}
+st_cast(pgh_official_boundary, "LINESTRING") %>% 
+  ggplot() +
+  geom_sf(aes(color = as.factor(FID)))
+
+tract_pred %>% 
+  ggplot() +
+  geom_sf() +
+  geom_sf(data = st_cast(pgh_official_boundary, "LINESTRING"),
+          aes(color = as.factor(FID)), alpha = 0) +
+  theme_void()
+```
+
+```{r}
+border_lines <- pgh_official_boundary %>% 
+  st_cast("LINESTRING")
+
 bounds <- tracts %>% st_bbox() %>% unlist()
 
 names(bounds) <- NULL
@@ -121,7 +137,7 @@ map <- leaflet(tract_pred) %>%
             position = "bottomright",
             
             group = "Legend") %>% 
-  addPolylines(data = pgh_official_boundary,
+  addPolylines(data = border_lines,
                weight = 10,
                stroke = TRUE,
                color = "black",
@@ -131,7 +147,7 @@ map <- leaflet(tract_pred) %>%
                group = "City boundary",
                options = pathOptions(pane = "City boundary")
                ) %>% 
-  addPolylines(data = pgh_official_boundary,
+  addPolylines(data = border_lines,
                weight = 2,
                stroke = TRUE,
                color = "yellow",
