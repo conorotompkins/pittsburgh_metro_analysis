@@ -86,12 +86,14 @@ census_vars %>%
 census_vars %>% 
   semi_join(enframe(vars_housing), by = c("name" = "value"))
 
-census_housing <- get_decennial(geography = "tract", 
+census_housing <- get_decennial(geography = "tract",
+                                year = 2010,
                                 variables = vars_housing,
                                 state = "PA", 
                                 county = "Allegheny", 
                                 geometry = FALSE,
-                                summary_var = "H011001")
+                                summary_var = "H011001"
+)
 
 tract_housing <- census_housing %>% 
   rename(total_population_housed = summary_value) %>% 
@@ -127,10 +129,14 @@ census_combined <- tract_housing %>%
                                         !is.nan(housed_population_density_pop_per_square_km) ~ housed_population_density_pop_per_square_km)) %>% 
   select(-contains("ALAND"))
 
+census_combined |> 
+  filter(is.na(housed_population_density_pop_per_square_km))
 
 glimpse(census_combined)
 
-tracts_geo <- tigris::tracts(state = "PA", county = "Allegheny", cb = TRUE) 
+tracts_geo <- tigris::tracts(state = "PA", county = "Allegheny", cb = TRUE, year = 2010) |> 
+  mutate(GEO_ID = str_remove(GEO_ID, "^1400000US")) |>
+  rename(GEOID = GEO_ID)
 
 tracts_geo %>% 
   left_join(census_combined) %>%

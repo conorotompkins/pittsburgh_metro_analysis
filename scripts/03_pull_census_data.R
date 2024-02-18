@@ -95,6 +95,7 @@ census_vars %>%
   semi_join(enframe(vars_housing), by = c("name" = "value"))
 
 census_housing <- get_decennial(geography = "block", 
+                                year = 2010,
                                 variables = vars_housing,
                                 state = "PA", 
                                 county = "Allegheny", 
